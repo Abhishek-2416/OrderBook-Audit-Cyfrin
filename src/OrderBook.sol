@@ -133,7 +133,17 @@ contract OrderBook is Ownable {
         uint256 deadlineTimestamp = block.timestamp + _deadlineDuration;
         uint256 orderId = _nextOrderId++;
 
+        //Check contract balance Before transfer
+        uint256 contractTokenBalanceBeforeTransfer = IERC20(_tokenToSell).balanceOf(address(this));
+
+        //Transfer token
         IERC20(_tokenToSell).safeTransferFrom(msg.sender, address(this), _amountToSell);
+
+        //Check contract balance After Transfer
+        uint256 contractTokenBalanceAfterTransfer = IERC20(_tokenToSell).balanceOf(address(this));
+
+        //The Amount of sell should be difference in balance as there could be hidden transfer Fees
+        _amountToSell = contractTokenBalanceAfterTransfer - contractTokenBalanceBeforeTransfer;
 
         // Store the order
         orders[orderId] = Order({
