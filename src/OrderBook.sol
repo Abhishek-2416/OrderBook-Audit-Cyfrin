@@ -14,6 +14,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol"; // For number to string conversion
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; 
 
 /**
  * @title OrderBook
@@ -21,7 +22,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol"; // For number
  * @notice This contract is built to mirror the way order-books operate in TradFi, but on DeFi, as close as possible
  */
 
-contract OrderBook is Ownable {
+contract OrderBook is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using Strings for uint256;
 
@@ -119,12 +120,24 @@ contract OrderBook is Ownable {
         _nextOrderId = 1; // Start order IDs from 1
     }
 
+    /// @notice Creates a new sell order by transferring tokens from seller to the contract
+    /// @dev This function is marked `nonReentrant` for the following reasons:
+    /// - It calls `safeTransferFrom()` on a user-supplied token address, which may be malicious.
+    /// - Some ERC20 tokens (non-standard ones) may have custom `transferFrom` implementations
+    ///   that invoke callbacks or external logic during the transfer (e.g., reentrancy hooks).
+    /// - A malicious token could use a fallback or hook to recursively call `createSellOrder()`
+    ///   again before the current execution completes, resulting in:
+    ///     - Incorrect state updates (`_nextOrderId`, `orders` overwritten)
+    ///     - Inconsistent contract balance checks
+    ///     - Multiple incomplete or invalid orders being created
+    /// - Even though no ETH is sent or received, this precaution ensures the contract's
+    ///   internal state cannot be manipulated during execution via reentrancy.
     function createSellOrder(
         address _tokenToSell,
         uint256 _amountToSell,
         uint256 _priceInUSDC,
         uint256 _deadlineDuration
-    ) public returns (uint256) {
+    ) public nonReentrant returns (uint256) {
         if (!allowedSellToken[_tokenToSell]) revert InvalidToken();
         if (_amountToSell == 0) revert InvalidAmount();
         if (_priceInUSDC == 0) revert InvalidPrice();
@@ -137,6 +150,7 @@ contract OrderBook is Ownable {
         uint256 contractTokenBalanceBeforeTransfer = IERC20(_tokenToSell).balanceOf(address(this));
 
         //Transfer token
+        // ⚠️ External call: if token is malicious, it could trigger a reentrant callback here
         IERC20(_tokenToSell).safeTransferFrom(msg.sender, address(this), _amountToSell);
 
         //Check contract balance After Transfer
