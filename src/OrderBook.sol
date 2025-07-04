@@ -22,6 +22,31 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  * @notice This contract is built to mirror the way order-books operate in TradFi, but on DeFi, as close as possible
  */
 
+/**
+ * @dev 🛡️ Reentrancy Protection Explanation:
+ *
+ * This contract uses OpenZeppelin’s `ReentrancyGuard` to protect functions that interact with
+ * external ERC20 tokens. Although this contract does not deal with native ETH transfers (which are
+ * a common reentrancy vector), it still interacts with **user-controlled ERC20 contracts**.
+ *
+ * Reasons for using `nonReentrant`:
+ * - ERC20 tokens (especially non-standard or malicious ones) may override `transfer` or `transferFrom`
+ *   to include custom logic, such as callbacks or hooks.
+ * - These hooks could **reenter** the calling function (`createSellOrder`, `amendSellOrder`, etc.)
+ *   before it finishes execution.
+ * - Such reentrancy could manipulate internal state like `_nextOrderId`, `orders`, `totalFees`, or
+ *   allow unintended logic to run multiple times.
+ *
+ * Protection Strategy:
+ * - All state-changing functions that involve ERC20 `transfer` or `transferFrom` are protected
+ *   using `nonReentrant`.
+ * - This includes order creation, amendment, cancellation, purchases, fee withdrawal, and emergency token withdrawal.
+ *
+ * ✅ This ensures that even if a malicious ERC20 is used, it cannot perform recursive attacks
+ *    or manipulate the contract’s internal bookkeeping.
+ */
+
+
 contract OrderBook is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using Strings for uint256;
@@ -179,7 +204,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         uint256 _newAmountToSell,
         uint256 _newPriceInUSDC,
         uint256 _newDeadlineDuration
-    ) public {
+    ) public nonReentrant{
         Order storage order = orders[_orderId];
 
         // Validation checks
@@ -213,7 +238,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         emit OrderAmended(_orderId, _newAmountToSell, _newPriceInUSDC, newDeadlineTimestamp);
     }
 
-    function cancelSellOrder(uint256 _orderId) public {
+    function cancelSellOrder(uint256 _orderId) public nonReentrant {
         Order storage order = orders[_orderId];
 
         // Validation checks
@@ -230,7 +255,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         emit OrderCancelled(_orderId, order.seller);
     }
 
-    function buyOrder(uint256 _orderId) public {
+    function buyOrder(uint256 _orderId) public nonReentrant{
         Order storage order = orders[_orderId];
 
         // Validation checks
@@ -314,7 +339,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         emit TokenAllowed(_token, _isAllowed);
     }
 
-    function emergencyWithdrawERC20(address _tokenAddress, uint256 _amount, address _to) external onlyOwner {
+    function emergencyWithdrawERC20(address _tokenAddress, uint256 _amount, address _to) external nonReentrant onlyOwner {
         if (
             _tokenAddress == address(iWETH) || _tokenAddress == address(iWBTC) || _tokenAddress == address(iWSOL)
                 || _tokenAddress == address(iUSDC)
@@ -330,7 +355,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         emit EmergencyWithdrawal(_tokenAddress, _amount, _to);
     }
 
-    function withdrawFees(address _to) external onlyOwner {
+    function withdrawFees(address _to) external nonReentrant onlyOwner {
         if (totalFees == 0) {
             revert InvalidAmount();
         }
