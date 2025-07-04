@@ -20,6 +20,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol"; // For number
  * @author Chukwubuike Victory Chime yeahChibyke @github.com
  * @notice This contract is built to mirror the way order-books operate in TradFi, but on DeFi, as close as possible
  */
+
 contract OrderBook is Ownable {
     using SafeERC20 for IERC20;
     using Strings for uint256;
@@ -80,12 +81,26 @@ contract OrderBook is Ownable {
     error InvalidPrice();
     error InvalidDeadline();
     error InvalidAddress();
+    error DuplicateAddresses();
 
     // --- Constructor ---
     constructor(address _weth, address _wbtc, address _wsol, address _usdc, address _owner) Ownable(_owner) {
         if (_weth == address(0) || _wbtc == address(0) || _wsol == address(0) || _usdc == address(0)) {
             revert InvalidToken();
         }
+
+        // Prevent any two of the token parameters from aliasing the same contract:
+        // without this, passing the wETH address as both _weth and _wbtc would:
+        // 1) log “Sell wBTC” but actually hold wETH,
+        // 2) let a buyer pay USDC for BTC and unwittingly receive ETH.
+        if (
+            _weth == _wbtc || _weth == _wsol || _weth == _usdc ||
+            _wbtc == _wsol || _wbtc == _usdc ||
+            _wsol == _usdc
+        ) {
+            revert DuplicateAddresses(); // fail-fast to ensure orders’ symbol and underlying token always match
+        }
+
         if (_owner == address(0)) {
             revert InvalidAddress();
         }
