@@ -228,8 +228,11 @@ contract OrderBook is Ownable, ReentrancyGuard {
         // Handle token amount changes
         if (_newAmountToSell > order.amountToSell) {
             // Increasing amount: Transfer additional tokens from seller
+            uint256 contractBalanceBefore = IERC20(order.tokenToSell).balanceOf(address(this));
             uint256 diff = _newAmountToSell - order.amountToSell;
             token.safeTransferFrom(msg.sender, address(this), diff);
+            uint256 contractBalanceAfter = IERC20(order.tokenToSell).balanceOf(address(this));
+            _newAmountToSell = contractBalanceAfter - contractBalanceBefore;
         } else if (_newAmountToSell < order.amountToSell) {
             // Decreasing amount: Transfer excess tokens back to seller
             uint256 diff = order.amountToSell - _newAmountToSell;
