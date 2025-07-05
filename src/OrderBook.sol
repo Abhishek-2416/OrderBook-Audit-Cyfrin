@@ -57,6 +57,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         address tokenToSell; // Address of wETH, wBTC, or wSOL
         uint256 amountToSell; // Amount of tokenToSell
         uint256 priceInUSDC; // Total USDC price for the entire amountToSell
+        uint256 createdAt; // Block timestamp at which the order was created
         uint256 deadlineTimestamp; // Block timestamp after which the order expires
         bool isActive; // Flag indicating if the order is available to be bought
     }
@@ -85,6 +86,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         address indexed tokenToSell,
         uint256 amountToSell,
         uint256 priceInUSDC,
+        uint256 createdAt,
         uint256 deadlineTimestamp
     );
     event OrderAmended(
@@ -108,6 +110,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
     error InvalidDeadline();
     error InvalidAddress();
     error DuplicateAddresses();
+    error CannotCrossTheMaxDeadline();
 
     // --- Constructor ---
     constructor(address _weth, address _wbtc, address _wsol, address _usdc, address _owner) Ownable(_owner) {
@@ -191,11 +194,12 @@ contract OrderBook is Ownable, ReentrancyGuard {
             tokenToSell: _tokenToSell,
             amountToSell: _amountToSell,
             priceInUSDC: _priceInUSDC,
+            createdAt: block.timestamp,
             deadlineTimestamp: deadlineTimestamp,
             isActive: true
         });
 
-        emit OrderCreated(orderId, msg.sender, _tokenToSell, _amountToSell, _priceInUSDC, deadlineTimestamp);
+        emit OrderCreated(orderId, msg.sender, _tokenToSell, _amountToSell, _priceInUSDC, block.timestamp,deadlineTimestamp);
         return orderId;
     }
 
@@ -216,8 +220,10 @@ contract OrderBook is Ownable, ReentrancyGuard {
         if (_newPriceInUSDC == 0) revert InvalidPrice();
         if (_newDeadlineDuration == 0 || _newDeadlineDuration > MAX_DEADLINE_DURATION) revert InvalidDeadline();
 
-        uint256 newDeadlineTimestamp = block.timestamp + _newDeadlineDuration;
         IERC20 token = IERC20(order.tokenToSell);
+
+        uint256 newExpiry = block.timestamp + _newDeadlineDuration;
+        require(newExpiry <= order.createdAt + MAX_DEADLINE_DURATION, CannotCrossTheMaxDeadline()); 
 
         // Handle token amount changes
         if (_newAmountToSell > order.amountToSell) {
@@ -233,9 +239,11 @@ contract OrderBook is Ownable, ReentrancyGuard {
         // Update order details
         order.amountToSell = _newAmountToSell;
         order.priceInUSDC = _newPriceInUSDC;
-        order.deadlineTimestamp = newDeadlineTimestamp;
 
-        emit OrderAmended(_orderId, _newAmountToSell, _newPriceInUSDC, newDeadlineTimestamp);
+        //Deadline refresh can be abused
+        order.deadlineTimestamp = newExpiry;
+
+        emit OrderAmended(_orderId, _newAmountToSell, _newPriceInUSDC, newExpiry);
     }
 
     function cancelSellOrder(uint256 _orderId) public nonReentrant {
