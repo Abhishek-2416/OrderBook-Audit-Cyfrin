@@ -58,6 +58,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         uint256 amountToSell; // Amount of tokenToSell
         uint256 priceInUSDC; // Total USDC price for the entire amountToSell
         uint256 createdAt; // Block timestamp at which the order was created
+        uint256 lastAmendedAt; // Block timestamp of when it was last amended
         uint256 deadlineTimestamp; // Block timestamp after which the order expires
         bool isActive; // Flag indicating if the order is available to be bought
     }
@@ -66,6 +67,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
     uint256 public constant MAX_DEADLINE_DURATION = 3 days; // Max duration from now for a deadline
     uint256 public constant FEE = 3; // 3%
     uint256 public constant PRECISION = 100;
+    uint256 public constant COOLDOWN_PERIOD = 1 hours;
 
     // --- State Variables ---
     IERC20 public immutable iWETH;
@@ -87,6 +89,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         uint256 amountToSell,
         uint256 priceInUSDC,
         uint256 createdAt,
+        uint256 lastAmendedAt,
         uint256 deadlineTimestamp
     );
     event OrderAmended(
@@ -111,6 +114,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
     error InvalidAddress();
     error DuplicateAddresses();
     error CannotCrossTheMaxDeadline();
+    error CooldownInEffect();
 
     // --- Constructor ---
     constructor(address _weth, address _wbtc, address _wsol, address _usdc, address _owner) Ownable(_owner) {
@@ -195,11 +199,12 @@ contract OrderBook is Ownable, ReentrancyGuard {
             amountToSell: _amountToSell,
             priceInUSDC: _priceInUSDC,
             createdAt: block.timestamp,
+            lastAmendedAt: block.timestamp,
             deadlineTimestamp: deadlineTimestamp,
             isActive: true
         });
 
-        emit OrderCreated(orderId, msg.sender, _tokenToSell, _amountToSell, _priceInUSDC, block.timestamp,deadlineTimestamp);
+        emit OrderCreated(orderId, msg.sender, _tokenToSell, _amountToSell, _priceInUSDC, block.timestamp,block.timestamp,deadlineTimestamp);
         return orderId;
     }
 
@@ -219,6 +224,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         if (_newAmountToSell == 0) revert InvalidAmount();
         if (_newPriceInUSDC == 0) revert InvalidPrice();
         if (_newDeadlineDuration == 0 || _newDeadlineDuration > MAX_DEADLINE_DURATION) revert InvalidDeadline();
+        if (block.timestamp < order.lastAmendedAt + COOLDOWN_PERIOD) revert CooldownInEffect();
 
         IERC20 token = IERC20(order.tokenToSell);
 
@@ -245,6 +251,9 @@ contract OrderBook is Ownable, ReentrancyGuard {
 
         //Deadline refresh can be abused
         order.deadlineTimestamp = newExpiry;
+
+        // update the last amended time
+        order.lastAmendedAt = block.timestamp;
 
         emit OrderAmended(_orderId, _newAmountToSell, _newPriceInUSDC, newExpiry);
     }
