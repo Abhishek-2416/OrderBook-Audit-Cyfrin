@@ -119,6 +119,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
     error CooldownInEffect();
     error OrderLockedForBuy();
     error OrderCannotBeBoughtBySeller();
+    error OrderPriceHasBeenChanged();
 
     // --- Constructor ---
     constructor(address _weth, address _wbtc, address _wsol, address _usdc, address _owner) Ownable(_owner) {
@@ -293,7 +294,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         order.buyLockExpiresAt = block.timestamp + BUY_LOCKIN_PERIOD;
     }
 
-    function buyOrder(uint256 _orderId) public nonReentrant{
+    function buyOrder(uint256 _orderId,uint256 expectedPrice) public nonReentrant{
         Order storage order = orders[_orderId];
 
         // Validation checks
@@ -301,6 +302,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         if (order.seller == address(0)) revert OrderNotFound();
         if (!order.isActive) revert OrderNotActive();
         if (block.timestamp >= order.deadlineTimestamp) revert OrderExpired();
+        if (expectedPrice != order.priceInUSDC) revert OrderPriceHasBeenChanged();
 
         order.isActive = false;
         order.buyLockExpiresAt = 0;
