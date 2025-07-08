@@ -118,6 +118,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
     error CannotCrossTheMaxDeadline();
     error CooldownInEffect();
     error OrderLockedForBuy();
+    error OrderCannotBeBoughtBySeller();
 
     // --- Constructor ---
     constructor(address _weth, address _wbtc, address _wsol, address _usdc, address _owner) Ownable(_owner) {
@@ -296,6 +297,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         Order storage order = orders[_orderId];
 
         // Validation checks
+        if (msg.sender == order.seller) revert OrderCannotBeBoughtBySeller();
         if (order.seller == address(0)) revert OrderNotFound();
         if (!order.isActive) revert OrderNotActive();
         if (block.timestamp >= order.deadlineTimestamp) revert OrderExpired();
