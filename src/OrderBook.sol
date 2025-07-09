@@ -80,7 +80,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
     mapping(address => bool) public allowedSellToken;
 
     mapping(uint256 => Order) public orders;
-    uint256 private _nextOrderId;
+    uint256 public _nextOrderId;
     uint256 public totalFees;
 
     // --- Events ---
