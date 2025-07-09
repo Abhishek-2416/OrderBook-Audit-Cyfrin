@@ -58,7 +58,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         uint256 amountToSell; // Amount of tokenToSell
         uint256 priceInUSDC; // Total USDC price for the entire amountToSell
         uint256 createdAt; // Block timestamp at which the order was created
-        uint256 buyLockExpiresAt; // This stays active when someone is about to buy
+        //uint256 buyLockExpiresAt; // This stays active when someone is about to buy
         uint256 lastAmendedAt; // Block timestamp of when it was last amended
         uint256 deadlineTimestamp; // Block timestamp after which the order expires
         bool isActive; // Flag indicating if the order is available to be bought
@@ -204,7 +204,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
             amountToSell: _amountToSell,
             priceInUSDC: _priceInUSDC,
             createdAt: block.timestamp,
-            buyLockExpiresAt: 0,
+            //buyLockExpiresAt: 0,
             lastAmendedAt: block.timestamp,
             deadlineTimestamp: deadlineTimestamp,
             isActive: true
@@ -231,7 +231,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         if (_newPriceInUSDC == 0) revert InvalidPrice();
         if (_newDeadlineDuration == 0 || _newDeadlineDuration > MAX_DEADLINE_DURATION) revert InvalidDeadline();
         if (block.timestamp < order.lastAmendedAt + COOLDOWN_PERIOD) revert CooldownInEffect();
-        if (block.timestamp < order.buyLockExpiresAt) revert OrderLockedForBuy();
+        //if (block.timestamp < order.buyLockExpiresAt) revert OrderLockedForBuy();
 
         IERC20 token = IERC20(order.tokenToSell);
 
@@ -273,7 +273,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         if (order.seller != msg.sender) revert NotOrderSeller();
         if (!order.isActive) revert OrderAlreadyInactive(); // Already inactive (filled or cancelled)
         if (block.timestamp < order.lastAmendedAt + COOLDOWN_PERIOD) revert CooldownInEffect(); //Prevent From Front-Runnning
-        if (block.timestamp < order.buyLockExpiresAt) revert OrderLockedForBuy();
+        //if (block.timestamp < order.buyLockExpiresAt) revert OrderLockedForBuy();
 
         // Mark as inactive
         order.isActive = false;
@@ -285,14 +285,14 @@ contract OrderBook is Ownable, ReentrancyGuard {
     }
 
     //This function is to be called by the frontent/relayer call
-    function lockOrderForBuy(uint256 _orderId) external {
-        Order storage order = orders[_orderId];
+    // function lockOrderForBuy(uint256 _orderId) external {
+    //     Order storage order = orders[_orderId];
 
-        if(!order.isActive) revert OrderNotActive();
-        if(block.timestamp >= order.deadlineTimestamp) revert OrderExpired();
+    //     if(!order.isActive) revert OrderNotActive();
+    //     if(block.timestamp >= order.deadlineTimestamp) revert OrderExpired();
 
-        order.buyLockExpiresAt = block.timestamp + BUY_LOCKIN_PERIOD;
-    }
+    //     order.buyLockExpiresAt = block.timestamp + BUY_LOCKIN_PERIOD;
+    // }
 
     function buyOrder(uint256 _orderId,uint256 expectedPrice) public nonReentrant{
         Order storage order = orders[_orderId];
@@ -305,7 +305,7 @@ contract OrderBook is Ownable, ReentrancyGuard {
         if (expectedPrice != order.priceInUSDC) revert OrderPriceHasBeenChanged();
 
         order.isActive = false;
-        order.buyLockExpiresAt = 0;
+        //order.buyLockExpiresAt = 0;
         uint256 protocolFee = (order.priceInUSDC * FEE) / PRECISION;
         uint256 sellerReceives = order.priceInUSDC - protocolFee;
 
