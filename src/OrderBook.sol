@@ -405,9 +405,9 @@ contract OrderBook is Ownable, ReentrancyGuard {
             revert InvalidAddress();
         }
 
-        iUSDC.safeTransfer(_to, totalFees);
-
         totalFees = 0;
+
+        iUSDC.safeTransfer(_to, totalFees);
 
         emit FeesWithdrawn(_to);
     }
